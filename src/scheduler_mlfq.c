@@ -1,162 +1,203 @@
+// Anusha to work
+
+// #include "../include/job.h"
+// #include "../include/queue.h"
+// #include "../include/io.h"
+// #include "../include/statistics.h"
 // #include <stdio.h>
-// #include <stdlib.h>
-// #include <stdbool.h>
-// #include <string.h>
 
-// #define MAX_PROCESSES 100
-// #define MAX_QUEUES 3
-// #define TIME_SLICE_BASE 2
-// #define BOOST_INTERVAL 20
-
-// typedef struct
+// void mlfq_scheduler(Job **job_list, int job_count)
 // {
-//     int pid;
-//     int burst_time;
-//     int remaining_time;
-//     int queue_level;
-//     int time_in_system;
-//     bool active;
-// } Process;
+//     printf("MLFQ scheduler is not yet implemented.\n");
+//     printf("Please use 'sjf' or 'rr' options for now.\n");
 
-// typedef struct
-// {
-//     Process *processes[MAX_PROCESSES];
-//     int front, rear;
-// } Queue;
-
-// Queue queues[MAX_QUEUES];
-// int current_time = 0;
-
-// void init_queue(Queue *q)
-// {
-//     q->front = q->rear = 0;
-// }
-
-// bool is_empty(Queue *q)
-// {
-//     return q->front == q->rear;
-// }
-
-// void enqueue(Queue *q, Process *p)
-// {
-//     q->processes[q->rear++] = p;
-// }
-
-// Process *dequeue(Queue *q)
-// {
-//     return is_empty(q) ? NULL : q->processes[q->front++];
-// }
-
-// void boost_all_processes()
-// {
-//     printf("Boosting all processes to highest priority.\n");
-//     for (int i = 1; i < MAX_QUEUES; i++)
-//     {
-//         while (!is_empty(&queues[i]))
-//         {
-//             Process *p = dequeue(&queues[i]);
-//             p->queue_level = 0;
-//             enqueue(&queues[0], p);
-//         }
+//     // Mark all jobs as finished with dummy times to avoid issues in statistics
+//     for (int i = 0; i < job_count; i++) {
+//         if (job_list[i]->start_time == -1)
+//             job_list[i]->start_time = 0;
+//         job_list[i]->end_time = 1;
+//         job_list[i]->state = FINISHED;
 //     }
 // }
-
-// void run_scheduler()
-// {
-//     while (true)
-//     {
-//         bool all_done = true;
-
-//         if (current_time > 0 && current_time % BOOST_INTERVAL == 0)
-//         {
-//             boost_all_processes();
-//         }
-
-//         for (int i = 0; i < MAX_QUEUES; i++)
-//         {
-//             if (!is_empty(&queues[i]))
-//             {
-//                 Process *p = dequeue(&queues[i]);
-//                 int time_slice = TIME_SLICE_BASE << i; // Longer slices at lower priorities
-//                 int actual_run_time = (p->remaining_time < time_slice) ? p->remaining_time : time_slice;
-
-//                 printf("Time %d: Running Process %d from Queue %d for %d units\n", current_time, p->pid, i, actual_run_time);
-//                 current_time += actual_run_time;
-//                 p->time_in_system += actual_run_time;
-//                 p->remaining_time -= actual_run_time;
-
-//                 if (p->remaining_time == 0)
-//                 {
-//                     printf("Process %d completed.\n", p->pid);
-//                     p->active = false;
-//                 }
-//                 else
-//                 {
-//                     if (actual_run_time == time_slice && i < MAX_QUEUES - 1)
-//                     {
-//                         p->queue_level++; // demote
-//                         enqueue(&queues[p->queue_level], p);
-//                     }
-//                     else
-//                     {
-//                         enqueue(&queues[i], p); // stays in same queue
-//                     }
-//                 }
-//                 all_done = false;
-//                 break; // run one process at a time
-//             }
-//         }
-
-//         if (all_done)
-//             break;
-//     }
-// }
-
-// void add_process(int pid, int burst_time)
-// {
-//     Process *p = (Process *)malloc(sizeof(Process));
-//     p->pid = pid;
-//     p->burst_time = burst_time;
-//     p->remaining_time = burst_time;
-//     p->queue_level = 0;
-//     p->time_in_system = 0;
-//     p->active = true;
-
-//     enqueue(&queues[0], p); // start at highest priority
-//     printf("Process %d added with burst time %d\n", pid, burst_time);
-// }
-
-// int main()
-// {
-//     for (int i = 0; i < MAX_QUEUES; i++)
-//         init_queue(&queues[i]);
-
-//     add_process(1, 5);
-//     add_process(2, 12);
-//     add_process(3, 7);
-
-//     run_scheduler();
-//     return 0;
-// }
-
-//Anusha to work
 
 #include "../include/job.h"
 #include "../include/queue.h"
 #include "../include/io.h"
 #include "../include/statistics.h"
 #include <stdio.h>
+#include <stdlib.h>
+
+#define NUM_QUEUES 3
+#define BOOST_INTERVAL 20
+
+void boost_all_jobs(JobQueue mlfq[])
+{
+    for (int i = 1; i < NUM_QUEUES; i++)
+    {
+        Job *curr = mlfq[i].front;
+        while (curr)
+        {
+            Job *next = curr->next;
+            curr->next = NULL;
+            curr->queue_level = 0;
+            enqueue(&mlfq[0], curr);
+            curr = next;
+        }
+        mlfq[i].front = mlfq[i].rear = NULL;
+    }
+}
 
 void mlfq_scheduler(Job **job_list, int job_count)
 {
-    printf("MLFQ scheduler is not yet implemented.\n");
-    printf("Please use 'sjf' or 'rr' options for now.\n");
-    
-    // Mark all jobs as finished with dummy times to avoid issues in statistics
-    for (int i = 0; i < job_count; i++) {
-        if (job_list[i]->start_time == -1)
-            job_list[i]->start_time = 0;
-        job_list[i]->end_time = 1;
-        job_list[i]->state = FINISHED;
+    int clock = 0;
+    int completed_jobs = 0;
+    Job *running_job = NULL;
+    int time_slice_used = 0;
+
+    JobQueue mlfq[NUM_QUEUES];
+    for (int i = 0; i < NUM_QUEUES; i++)
+    {
+        mlfq[i].front = mlfq[i].rear = NULL;
     }
+
+    JobQueue io_queue = {NULL, NULL};
+    os_srand(1);
+
+    while (completed_jobs < job_count)
+    {
+        // Rule 5: Priority Boost
+        if (clock > 0 && clock % BOOST_INTERVAL == 0)
+        {
+            printf("Clock %d: Priority Boosting all jobs\n", clock);
+            boost_all_jobs(mlfq);
+        }
+
+        // Handle job arrivals (Rule 3)
+        for (int i = 0; i < job_count; i++)
+        {
+            Job *job = job_list[i];
+            if (job->arrival_time == clock && job->state == NEW)
+            {
+                job->state = READY;
+                job->queue_level = 0;
+                enqueue(&mlfq[0], job);
+                printf("Clock %d: Job %d arrived and added to Q%d\n", clock, job->pid, 0);
+            }
+        }
+
+        // Handle I/O completion
+        Job *prev = NULL, *curr = io_queue.front;
+        while (curr != NULL)
+        {
+            if (IO_complete())
+            {
+                printf("Clock %d: Job %d completed I/O\n", clock, curr->pid);
+                Job *done = curr;
+                if (prev)
+                    prev->next = curr->next;
+                else
+                    io_queue.front = curr->next;
+                if (curr == io_queue.rear)
+                    io_queue.rear = prev;
+                curr = curr->next;
+                done->next = NULL;
+                done->state = READY;
+                enqueue(&mlfq[done->queue_level], done);
+                continue;
+            }
+            prev = curr;
+            curr = curr->next;
+        }
+
+        // Schedule next job (Rules 1 & 2)
+        if (!running_job)
+        {
+            for (int i = 0; i < NUM_QUEUES; i++)
+            {
+                if (!is_empty(&mlfq[i]))
+                {
+                    running_job = dequeue(&mlfq[i]);
+                    running_job->state = RUNNING;
+                    time_slice_used = 0;
+                    if (running_job->start_time == -1)
+                        running_job->start_time = clock;
+                    printf("Clock %d: Job %d running from Q%d\n", clock, running_job->pid, running_job->queue_level);
+                    break;
+                }
+            }
+        }
+
+        // Run the job if any
+        if (running_job)
+        {
+            running_job->remaining_time--;
+            running_job->time_in_running++;
+            time_slice_used++;
+
+            int max_time_slice = 1 << running_job->queue_level;
+
+            printf("Clock %d: Job %d running (remaining %d, slice %d/%d)\n",
+                   clock, running_job->pid, running_job->remaining_time,
+                   time_slice_used, max_time_slice);
+
+            if (running_job->remaining_time == 0)
+            {
+                printf("Clock %d: Job %d finished\n", clock, running_job->pid);
+                running_job->state = FINISHED;
+                running_job->end_time = clock;
+                running_job = NULL;
+                completed_jobs++;
+                time_slice_used = 0;
+            }
+            else if (IO_request())
+            {
+                printf("Clock %d: Job %d requested I/O\n", clock, running_job->pid);
+                running_job->state = WAITING_IO;
+                enqueue(&io_queue, running_job);
+                // Rule 4b: No demotion
+                running_job = NULL;
+                time_slice_used = 0;
+            }
+            else if (time_slice_used >= max_time_slice)
+            {
+                // Rule 4a: Demotion
+                if (running_job->queue_level < NUM_QUEUES - 1)
+                    running_job->queue_level++;
+                printf("Clock %d: Job %d time slice expired, demoted to Q%d\n",
+                       clock, running_job->pid, running_job->queue_level);
+                running_job->state = READY;
+                enqueue(&mlfq[running_job->queue_level], running_job);
+                running_job = NULL;
+                time_slice_used = 0;
+            }
+        }
+
+        // Time accounting
+        for (int i = 0; i < NUM_QUEUES; i++)
+        {
+            Job *temp = mlfq[i].front;
+            while (temp)
+            {
+                temp->time_in_ready++;
+                temp = temp->next;
+            }
+        }
+
+        Job *io_temp = io_queue.front;
+        while (io_temp)
+        {
+            io_temp->time_in_io++;
+            io_temp = io_temp->next;
+        }
+
+        clock++;
+        if (clock > 10000)
+        {
+            printf("Exceeded simulation max time.\n");
+            break;
+        }
+    }
+
+    printf("\nSimulation completed at clock tick %d\n", clock);
+    print_statistics(job_list, job_count, clock);
 }
